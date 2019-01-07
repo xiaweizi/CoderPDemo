@@ -31,6 +31,7 @@ public class CameraView extends View {
     private float bitmapHeigth;
     private Bitmap avatar;
     private int degrees;
+    private int rotateX;
 
     public CameraView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
@@ -38,7 +39,6 @@ public class CameraView extends View {
 
     {
         paint.setColor(Color.RED);
-        camera.rotateX(40);
         camera.setLocation(0, 0, -8 * Resources.getSystem().getDisplayMetrics().density);
         avatar = getAvatar();
     }
@@ -59,7 +59,10 @@ public class CameraView extends View {
         canvas.save();
         canvas.translate(100 + bitmapWidth / 2, 100 + bitmapHeigth / 2);
         canvas.rotate(degrees);
+        camera.save();
+        camera.rotateX(rotateX);
         camera.applyToCanvas(canvas);
+        camera.restore();
         canvas.clipRect(-getWidth(), 0, getWidth(), bitmapHeigth);
         canvas.rotate(-degrees);
         canvas.translate(-(100 + bitmapWidth / 2), -(100 + bitmapHeigth / 2));
@@ -97,8 +100,15 @@ public class CameraView extends View {
                 degrees += 360;
             }
             degrees = -degrees;
-            invalidate();
             Log.i(TAG, "agree: " + degrees);
+
+            double c = Math.sqrt(x1 * x1 + y1 * y1);
+            double c1 = bitmapWidth / 2;
+            double ratio = c / c1 >= 1 ? 1 : c / c1;
+            rotateX = (int) ((1 - ratio) * 180);
+            Log.i(TAG, "ratio: " + ratio);
+            Log.i(TAG, "rotateX: " + rotateX);
+            invalidate();
         }
         return true;
     }
