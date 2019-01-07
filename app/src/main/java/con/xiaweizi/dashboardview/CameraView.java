@@ -74,7 +74,7 @@ public class CameraView extends View {
         BitmapFactory.decodeResource(getResources(), R.drawable.bg, options);
         options.inJustDecodeBounds = false;
         options.inDensity = 1;
-        options.inTargetDensity = 1;
+        options.inTargetDensity = 2;
         Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.bg, options);
         bitmapWidth = options.outWidth;
         bitmapHeigth = options.outHeight;
