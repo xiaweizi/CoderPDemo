@@ -12,6 +12,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.widget.OverScroller;
 
@@ -24,7 +25,7 @@ import android.widget.OverScroller;
  *     desc   :
  * </pre>
  */
-public class ScaleImageView extends View implements GestureDetector.OnGestureListener, GestureDetector.OnDoubleTapListener, Runnable {
+public class ScaleImageView extends View implements GestureDetector.OnGestureListener, GestureDetector.OnDoubleTapListener, Runnable, ScaleGestureDetector.OnScaleGestureListener {
     private static final String TAG = "ScaleImageView::";
     private static final float OVER_RATIO = 1.5f;
     private int bitmapWidth;
@@ -39,16 +40,17 @@ public class ScaleImageView extends View implements GestureDetector.OnGestureLis
     private float bigScale;
     private boolean big = false;
     private final GestureDetectorCompat detectorCompat;
-    private float scaleFraction;
+    private ScaleGestureDetector scaleGestureDetector;
+    private float currentScale;
     private ObjectAnimator objectAnimator;
     private OverScroller overScroller;
 
     public float getScaleFraction() {
-        return scaleFraction;
+        return currentScale;
     }
 
     public void setScaleFraction(float scaleFraction) {
-        this.scaleFraction = scaleFraction;
+        this.currentScale = scaleFraction;
         invalidate();
     }
 
@@ -58,6 +60,7 @@ public class ScaleImageView extends View implements GestureDetector.OnGestureLis
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         detectorCompat = new GestureDetectorCompat(context, this);
         detectorCompat.setOnDoubleTapListener(this);
+        scaleGestureDetector = new ScaleGestureDetector(context, this);
         overScroller = new OverScroller(context);
     }
 
@@ -65,6 +68,7 @@ public class ScaleImageView extends View implements GestureDetector.OnGestureLis
         if (objectAnimator == null) {
             objectAnimator = ObjectAnimator.ofFloat(this, "scaleFraction", 0, 1);
         }
+        objectAnimator.setFloatValues(smallScale, bigScale);
         return objectAnimator;
     }
 
@@ -93,22 +97,26 @@ public class ScaleImageView extends View implements GestureDetector.OnGestureLis
             bigScale = w * 1f / bitmapWidth;
             smallScale = h * 1f / bitmapHeigth * OVER_RATIO;
         }
-
+        currentScale = smallScale;
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        canvas.translate(offsetX, offsetY);
-        float scale = smallScale + (bigScale - smallScale) * scaleFraction;
-        canvas.scale(scale, scale, getWidth() / 2, getHeight() / 2);
+        float fraction = (currentScale - smallScale) / (bigScale - smallScale);
+        canvas.translate(offsetX * fraction, offsetY * fraction);
+        canvas.scale(currentScale, currentScale, getWidth() / 2, getHeight() / 2);
         canvas.drawBitmap(mBitmap, originOffsetX, originOffsetY, paint);
 
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        return detectorCompat.onTouchEvent(event);
+        boolean result = scaleGestureDetector.onTouchEvent(event);
+        if (!scaleGestureDetector.isInProgress()) {
+            result = detectorCompat.onTouchEvent(event);
+        }
+        return result;
     }
 
     @Override
@@ -129,7 +137,6 @@ public class ScaleImageView extends View implements GestureDetector.OnGestureLis
 
     @Override
     public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-        Log.i(TAG, "onScroll: " + distanceX);
         if (big) {
             offsetX -= distanceX;
             offsetY -= distanceY;
@@ -153,7 +160,7 @@ public class ScaleImageView extends View implements GestureDetector.OnGestureLis
                     -(int) (bitmapWidth * bigScale - getWidth()) / 2,
                     (int) (bitmapWidth * bigScale - getWidth()) / 2,
                     -(int) (bitmapHeigth * bigScale - getHeight()) / 2,
-                    (int) (bitmapHeigth * bigScale - getHeight()) / 2, 50, 50);
+                    (int) (bitmapHeigth * bigScale - getHeight()) / 2);
             postOnAnimation(this);
         }
         return false;
@@ -168,14 +175,16 @@ public class ScaleImageView extends View implements GestureDetector.OnGestureLis
     @Override
     public boolean onDoubleTap(MotionEvent e) {
         Log.i(TAG, "onDoubleTap: ");
-        if (big) {
-            offsetX = 0;
-            offsetY = 0;
-            getScaleAnimator().reverse();
-        } else {
-            getScaleAnimator().start();
-        }
         big = !big;
+        if (big) {
+            offsetX = (e.getX() - getWidth() / 2f) - (e.getX() - getWidth() / 2f) * bigScale / smallScale;
+            offsetY = (e.getY() - getHeight() / 2f) - (e.getY() - getHeight() / 2f) * bigScale / smallScale;
+            offsetX = Math.max(Math.min((bitmapWidth * bigScale - getWidth()) / 2, offsetX), -(bitmapWidth * bigScale - getWidth()) / 2);
+            offsetY = Math.max(Math.min((bitmapHeigth * bigScale - getHeight()) / 2, offsetY), -(bitmapHeigth * bigScale - getHeight()) / 2);
+            getScaleAnimator().start();
+        } else {
+            getScaleAnimator().reverse();
+        }
         return false;
     }
 
@@ -193,5 +202,27 @@ public class ScaleImageView extends View implements GestureDetector.OnGestureLis
             invalidate();
             postOnAnimation(this);
         }
+    }
+
+    float initScale;
+
+    @Override
+    public boolean onScale(ScaleGestureDetector detector) {
+        Log.i(TAG, "onScale: " + detector.getScaleFactor());
+        currentScale = initScale * detector.getScaleFactor();
+        invalidate();
+        return false;
+    }
+
+    @Override
+    public boolean onScaleBegin(ScaleGestureDetector detector) {
+        Log.i(TAG, "onScaleBegin: ");
+        initScale = currentScale;
+        return true;
+    }
+
+    @Override
+    public void onScaleEnd(ScaleGestureDetector detector) {
+        Log.i(TAG, "onScaleEnd: ");
     }
 }
